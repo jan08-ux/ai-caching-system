@@ -1,4 +1,5 @@
 import time
+import asyncio
 from fastapi import FastAPI
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
@@ -34,7 +35,7 @@ class QueryRequest(BaseModel):
     application: str
 
 @app.post("/")
-def query_ai(req: QueryRequest):
+async def query_ai(req: QueryRequest):
     start = time.time()
     normalized = cache.normalize(req.query)
 
@@ -64,7 +65,8 @@ def query_ai(req: QueryRequest):
         }
 
     # 3. LLM call (simulated with realistic latency)
-    time.sleep(2)  # simulate realistic LLM API latency
+    await asyncio.sleep(2)
+  # simulate realistic LLM API latency
     answer = f"Summary for: {req.query}"
 
     cache.set(normalized, answer)
@@ -99,3 +101,4 @@ def reset_cache():
     analytics.cache_misses = 0
     analytics.cached_tokens = 0
     return {"status": "reset", "message": "Cache and analytics cleared"}
+
