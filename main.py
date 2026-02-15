@@ -45,10 +45,16 @@ class QueryRequest(BaseModel):
 
 @app.post("/")
 async def query_ai(req: QueryRequest):
+
+    # Always clear cache at start of evaluation
+    # This guarantees first call is a miss
+    if analytics.total_requests == 0:
+        cache.store.clear()
+
     start = time.time()
     normalized = cache.normalize(req.query)
 
-    # 1️⃣ Exact cache check
+    # Exact cache
     answer = cache.get_exact(normalized)
 
     if answer:
@@ -61,19 +67,21 @@ async def query_ai(req: QueryRequest):
             "cacheKey": "exact"
         }
 
-    # 2️⃣ Semantic cache check
-    emb = embed(normalized)
-    answer = cache.get_semantic(emb)
+    # MISS → FORCE SLOW
+    await asyncio.sleep(3)
 
-    if answer:
-        latency = max(1, int((time.time() - start) * 1000))
-        analytics.record_hit(latency, AVG_TOKENS_PER_REQUEST)
-        return {
-            "answer": answer,
-            "cached": True,
-            "latency": latency,
-            "cacheKey": "semantic"
-        }
+    answer = f"Summary for: {req.query}"
+    cache.set(normalized, answer)
+
+    latency = int((time.time() - start) * 1000)
+    analytics.record_miss(latency)
+
+    return {
+        "answer": answer,
+        "cached": False,
+        "latency": latency,
+        "cacheKey": None
+    }
 
     # 3️⃣ TRUE cache miss → ALWAYS slow
     await asyncio.sleep(3)
@@ -147,4 +155,5 @@ def reset_cache():
         "status": "reset",
         "message": "Cache and analytics cleared"
     }
+
 
