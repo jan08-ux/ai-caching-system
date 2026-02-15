@@ -65,7 +65,8 @@ async def query_ai(req: QueryRequest):
         }
 
     # 3. LLM call (simulated with realistic latency)
-    await asyncio.sleep(2)
+    await asyncio.sleep(3)
+
   # simulate realistic LLM API latency
     answer = f"Summary for: {req.query}"
 
@@ -101,4 +102,5 @@ def reset_cache():
     analytics.cache_misses = 0
     analytics.cached_tokens = 0
     return {"status": "reset", "message": "Cache and analytics cleared"}
+
 
