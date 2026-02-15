@@ -48,13 +48,10 @@ async def query_ai(req: QueryRequest):
     start = time.time()
     normalized = cache.normalize(req.query)
 
-    # Determine if this query has been seen in this runtime
-    first_time_seen = normalized not in seen_queries
-    seen_queries.add(normalized)
-
     # 1️⃣ Exact cache check
     answer = cache.get_exact(normalized)
-    if answer and not first_time_seen:
+
+    if answer:
         latency = max(1, int((time.time() - start) * 1000))
         analytics.record_hit(latency, AVG_TOKENS_PER_REQUEST)
         return {
@@ -63,6 +60,36 @@ async def query_ai(req: QueryRequest):
             "latency": latency,
             "cacheKey": "exact"
         }
+
+    # 2️⃣ Semantic cache check
+    emb = embed(normalized)
+    answer = cache.get_semantic(emb)
+
+    if answer:
+        latency = max(1, int((time.time() - start) * 1000))
+        analytics.record_hit(latency, AVG_TOKENS_PER_REQUEST)
+        return {
+            "answer": answer,
+            "cached": True,
+            "latency": latency,
+            "cacheKey": "semantic"
+        }
+
+    # 3️⃣ TRUE cache miss → ALWAYS slow
+    await asyncio.sleep(3)
+
+    answer = f"Summary for: {req.query}"
+    cache.set(normalized, answer)
+
+    latency = int((time.time() - start) * 1000)
+    analytics.record_miss(latency)
+
+    return {
+        "answer": answer,
+        "cached": False,
+        "latency": latency,
+        "cacheKey": None
+    }
 
     # 2️⃣ Semantic cache check
     emb = embed(normalized)
@@ -112,7 +139,6 @@ def get_analytics():
 @app.post("/reset")
 def reset_cache():
     cache.store.clear()
-    analytics.total_requests = 0
     analytics.cache_hits = 0
     analytics.cache_misses = 0
     analytics.cached_tokens = 0
@@ -121,3 +147,4 @@ def reset_cache():
         "status": "reset",
         "message": "Cache and analytics cleared"
     }
+
