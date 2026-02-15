@@ -36,6 +36,9 @@ class QueryRequest(BaseModel):
 
 @app.post("/")
 async def query_ai(req: QueryRequest):
+    if analytics.total_requests == 0:
+        cache.store.clear()
+
     start = time.time()
     normalized = cache.normalize(req.query)
 
@@ -102,5 +105,6 @@ def reset_cache():
     analytics.cache_misses = 0
     analytics.cached_tokens = 0
     return {"status": "reset", "message": "Cache and analytics cleared"}
+
 
 
